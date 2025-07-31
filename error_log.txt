@@ -1,0 +1,12 @@
+GUI初始化错误: cannot use geometry manager grid inside .!frame.!frame which already has slaves managed by pack
+详细信息:
+Traceback (most recent call last):
+  File "D:\uart_test\main.py", line 52, in main
+    app = UARTTestGUI(root)
+  File "D:\uart_test\uart_gui.py", line 83, in __init__
+    self.create_widgets()
+  File "D:\uart_test\uart_gui.py", line 537, in create_widgets
+    self.loop_button.grid(row=0, column=2, padx=5, pady=5)
+  File "C:\Users\Administrator\AppData\Local\Programs\Python\Python310\lib\tkinter\__init__.py", line 2522, in grid_configure
+    self.tk.call(
+_tkinter.TclError: cannot use geometry manager grid inside .!frame.!frame which already has slaves managed by pack
