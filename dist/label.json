@@ -55,6 +55,22 @@
         "EN": "Write All",
         "CN": "全部写入"
     },
+    "upgrade_mcu": {
+        "EN": "Upgrade MCU",
+        "CN": "升级MCU固件"
+    },
+    "cycle_send": {
+        "EN": "Cycle Send",
+        "CN": "循环发送"
+    },
+    "F0_response": {
+        "EN": "F0 Response",
+        "CN": "回复F0"
+    },
+    "40/50_report": {
+        "EN": "40/50 report",
+        "CN": "回复40/50"
+    },
     "read": {
         "EN": "Read",
         "CN": "读取"
@@ -74,6 +90,10 @@
     "clear_log": {
         "EN": "Clear Log",
         "CN": "清除日志"
+    },
+    "save_log": {
+        "EN": "Save Log",
+        "CN": "保存日志"
     },
     "expand": {
         "EN": "[+]",

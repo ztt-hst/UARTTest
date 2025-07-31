@@ -204,21 +204,15 @@ class UARTTestGUI:
         self.module_frames.clear()
         self.submodule_frames.clear()
 
-        # Organize items by module and submodule
-        self.organized_items = {}
-        for item in self.items:
-            module = item.get("Module" if self.current_language == "EN" else "模块", "Uncategorized")
-            submodule = item.get("Submodule" if self.current_language == "EN" else "子模块", "Others")
-            
-            if module not in self.organized_items:
-                self.organized_items[module] = {}
+        # Initialize module and submodule states for new modules/submodules
+        for module in self.organized_items:
+            if module not in self.module_states:
                 self.module_states[module] = True
             
-            if submodule not in self.organized_items[module]:
-                self.organized_items[module][submodule] = []
-                self.submodule_states[f"{module}_{submodule}"] = True
-            
-            self.organized_items[module][submodule].append(item)
+            for submodule in self.organized_items[module]:
+                state_key = f"{module}_{submodule}"
+                if state_key not in self.submodule_states:
+                    self.submodule_states[state_key] = True
 
         # Create frames for each module
         current_row = 0
@@ -282,8 +276,7 @@ class UARTTestGUI:
         try:
             # Create a frame for this item
             item_frame = ttk.Frame(parent)
-            item_frame.grid(row=0, column=0, sticky='ew', pady=2)
-           
+            item_frame.grid(row=0, column=0, sticky='ew', pady=2)           
 
             # Configure column weights for better layout
             item_frame.columnconfigure(0, weight=0)  # Label column - fixed
@@ -299,10 +292,10 @@ class UARTTestGUI:
             item_label.grid(row=0, column=0, padx=(40, 5), sticky='w')
             item['label_widget'] = item_label
             
-            # Create tooltip for the label
+            # Create tooltip for the label添加提示框
             self.create_tooltip(item_label, 
                               f"Address: {item['index']}\n"
-                              f"Description: {item.get('item' if self.current_language == 'EN' else '项目', '')}\n"
+                              #f"Description: {item.get('item' if self.current_language == 'EN' else '项目', '')}\n"
                               f"Permission: {item.get('permission', 'R')}")
 
             # Create read button and result display
@@ -573,7 +566,7 @@ class UARTTestGUI:
                 width=self.canvas.winfo_width()  # 设置初始宽度
             )
 
-            # 绑定画布大小变化事件
+            # 绑定画布大小变化事件 scrollable_frame
             self.canvas.bind('<Configure>', self.on_canvas_configure)
             
             # 配置画布和滚动条

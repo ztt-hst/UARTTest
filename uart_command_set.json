@@ -2950,7 +2950,7 @@
     "子模块": "系统参数",
     "Submodule": "System Parameter",
     "base addr.1": "0x0600",
-    "addr": "0x0008",
+    "addr": "0x000C",
     "index": "0x260C",
     "项目": "ESP32按钮开关机信号",
     "item": "ESP32_POWER_BUTTON_SIGNAL",
