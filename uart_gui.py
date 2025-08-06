@@ -11,6 +11,7 @@ import serial.tools.list_ports
 import threading
 from tkinter import filedialog
 import datetime
+import os
 from protocol import (
     PU_FRAME_HEAD, PU_FUN_READ, PU_FUN_WRITE, PU_FUN_UPGRADE, PU_FUN_UPGRADE_CRC,
     PU_FUN_MCU_RESET, PU_FUN_CONNECT, PU_FUN_MCU_WRITE_ALARM, PU_FUN_MCU_WRITE_CONFIG, PU_FUN_MCU_WRITE_DATA,
@@ -26,9 +27,21 @@ from uart_interface import UARTInterface
 from log_manager import LogManager
 from label_manager import LabelManager
 from item_manager import ItemManager
-import utils
 from uart_service import UARTService
+import utils
 
+
+def get_resource_path(filename):
+    """
+    获取资源文件路径，兼容开发环境和PyInstaller打包后的环境
+    """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller打包后的exe
+        base_path = sys._MEIPASS
+    else:
+        # 源码运行
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, filename)
 
 RECYCLE_TIME = 0.5
 class UARTTestGUI:
@@ -36,6 +49,15 @@ class UARTTestGUI:
         try:
             #根窗口
             self.root = root
+            
+            # 设置窗口图标
+            try:
+                icon_path = get_resource_path('BQC.ico')
+                if os.path.exists(icon_path):
+                    self.root.iconbitmap(icon_path)
+            except Exception as e:
+                # 如果图标设置失败，不影响程序运行
+                pass
             
             # Configure styles 一些风格用于后面子模块的显示
             self.style = ttk.Style()
@@ -66,10 +88,18 @@ class UARTTestGUI:
             self.item_read_buttons = {}
             self.item_write_buttons = {}
             
-            # 管理类实例化
-            self.log_manager = LogManager()         #
+            # 管理类实例化 - 使用统一的资源路径
+            self.log_manager = LogManager()
             self.label_manager = LabelManager()
-            self.item_manager = ItemManager(language=self.label_manager.current_language)
+            
+            # 获取 JSON 文件路径
+            json_file_path = get_resource_path('uart_command_set.json')
+            
+            self.item_manager = ItemManager(
+                json_file=json_file_path,
+                language=self.label_manager.current_language
+            )
+            
             # 日志回调绑定
             self.log_manager.set_log_callback(self._log_callback)
             
@@ -114,6 +144,8 @@ class UARTTestGUI:
                 f.write("详细信息:\n")
                 f.write(error_details)
             raise
+
+    # 移除原来的 get_resource_path 方法，使用 utils 中的统一函数
 
     # 标签相关
     def load_labels(self):
@@ -398,18 +430,56 @@ class UARTTestGUI:
             messagebox.showwarning("Warning", "MCU not connected. Please wait for handshake.")
             return
         addr_hex = item['index']
-        if item['index'] not in self.input_vars:
-            self.write_status_vars[item['index']].set("err")
-            return
-        value_str = self.input_vars[item['index']].get().strip()
-        if not value_str:
-            self.write_status_vars[item['index']].set("err")
-            return
-        try:
-            value = int(value_str, 16) if value_str.startswith('0x') else int(value_str)
-        except ValueError:
-            self.write_status_vars[item['index']].set("err")
-            return
+        # 检查是否为 AFE 校准项目
+        module_name = item.get('模块' if self.current_language == 'CN' else 'Module', '')
+        submodule_name = item.get('子模块' if self.current_language == 'CN' else 'Submodule', '')
+        # 判断是否为 AFE 校准模块
+        is_afe_calibration = (
+            module_name in ["AFE校准", "AFE calibration"] or 
+            submodule_name in ["AFE校准", "AFE calibration"]
+        )
+        if is_afe_calibration:
+            try:
+                from afe_calibration import afe_calibration
+                item_name = item.get('项目' if self.current_language == 'CN' else 'item', '')
+                calculated_value = afe_calibration.calculate_calibration_value(item_name, item)
+                if calculated_value is not None:
+                    # 验证校准值
+                    if afe_calibration.validate_calibration_value(calculated_value, item_name):
+                        value = calculated_value
+                        # 记录校准日志
+                        afe_calibration.log_calibration(item_name, calculated_value, True)
+                        self.add_to_log(f"AFE校准计算: {item_name} = {calculated_value}")
+                    else:
+                        self.write_status_vars[item['index']].set("校准值无效")
+                        afe_calibration.log_calibration(item_name, calculated_value, False)
+                        self.add_to_log(f"AFE校准失败: {item_name} 值 {calculated_value} 超出范围")
+                        return
+                else:
+                    self.write_status_vars[item['index']].set("校准计算失败")
+                    self.add_to_log(f"AFE校准计算失败: {item_name}")
+                    return               
+            except ImportError:
+                self.write_status_vars[item['index']].set("校准模块缺失")
+                self.add_to_log(f"AFE校准模块导入失败")
+                return
+            except Exception as e:
+                self.write_status_vars[item['index']].set("校准错误")
+                self.add_to_log(f"AFE校准错误: {str(e)}")
+                return     
+        else:
+            if item['index'] not in self.input_vars:
+                self.write_status_vars[item['index']].set("err")
+                return
+            value_str = self.input_vars[item['index']].get().strip()
+            if not value_str:
+                self.write_status_vars[item['index']].set("err")
+                return
+            try:
+                value = int(value_str, 16) if value_str.startswith('0x') else int(value_str)
+            except ValueError:
+                self.write_status_vars[item['index']].set("err")
+                return
         def on_response(result, error=None):
             if error:
                 if error == 'timeout':

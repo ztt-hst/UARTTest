@@ -1,5 +1,19 @@
 import tkinter as tk
 from tkinter import ttk
+import sys
+import os
+
+def get_resource_path(filename):
+    """
+    获取资源文件路径，兼容开发环境和PyInstaller打包后的环境
+    """
+    if getattr(sys, 'frozen', False):
+        # PyInstaller打包后的exe
+        base_path = sys._MEIPASS
+    else:
+        # 源码运行
+        base_path = os.path.abspath(".")
+    return os.path.join(base_path, filename)
 
 def format_bytes(data):
     if isinstance(data, (bytes, bytearray)):

@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 
 class ItemManager:
     def __init__(self, json_file='uart_command_set.json', language='EN'):
@@ -10,10 +12,19 @@ class ItemManager:
 
     def load_items(self):
         try:
-            with open(self.json_file, 'r', encoding='utf-8') as f:
+            # 直接使用传入的完整路径
+            json_path = self.json_file
+            
+            if not os.path.exists(json_path):
+                raise FileNotFoundError(f"找不到配置文件: {self.json_file}")
+                
+            with open(json_path, 'r', encoding='utf-8') as f:
                 self.items = json.load(f)
         except Exception as e:
             print(f"Error loading JSON file: {e}")
+            # 显示更详细的错误信息
+            import traceback
+            traceback.print_exc()
             self.items = []
         self.organize_items()
 

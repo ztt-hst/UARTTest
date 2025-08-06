@@ -6,8 +6,23 @@ a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
-    datas=[('uart_command_set.json', '.')],
-    hiddenimports=['serial', 'serial.tools.list_ports'],
+    datas=[
+        ('uart_command_set.json', '.'),
+        ('label.json', '.'),
+        ('BQC.ico', '.'),  # 添加图标文件
+    ],
+    hiddenimports=[
+        'serial', 
+        'serial.tools.list_ports',
+        'afe_calibration',
+        'item_manager',
+        'label_manager',
+        'log_manager',
+        'uart_interface',
+        'uart_service',
+        'protocol',
+        'utils',
+    ],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -34,10 +49,10 @@ exe = EXE(
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=False,
+    console=False,  # 改回 False，隐藏控制台窗口
     disable_windowed_traceback=False,
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=None,
+    icon='BQC.ico',
 ) 

@@ -3,6 +3,7 @@ import serial
 import time
 import struct
 import json
+from utils import get_resource_path
 
 # UART Protocol Constants
 PU_FRAME_HEAD = 0x5A
@@ -111,7 +112,7 @@ def update_json_with_commands():
     """
     try:
         # Read the JSON file
-        with open('uart_command_set.json', 'r', encoding='utf-8') as f:
+        with open(get_resource_path('uart_command_set.json'), 'r', encoding='utf-8') as f:
             items = json.load(f)
         
         # Process each item
@@ -149,7 +150,7 @@ def update_json_with_commands():
             item['write command'] = write_cmd_str
         
         # Write back to JSON file
-        with open('uart_command_set.json', 'w', encoding='utf-8') as f:
+        with open(get_resource_path('uart_command_set.json'), 'w', encoding='utf-8') as f:
             json.dump(items, f, ensure_ascii=False, indent=2)
             
         print("Successfully updated read/write commands in JSON file")

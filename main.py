@@ -5,19 +5,22 @@ import os
 import sys
 import traceback
 from uart_gui import UARTTestGUI
+from utils import get_resource_path
 
 def check_requirements():
     """检查运行环境和必要文件"""
     # 检查配置文件
-    if not os.path.exists('uart_command_set.json'):
+    config_path = get_resource_path('uart_command_set.json')
+    if not os.path.exists(config_path):
         messagebox.showerror("错误", "找不到配置文件：uart_command_set.json")
         return False
-    if not os.path.exists('label.json'):
+    label_path = get_resource_path('label.json')
+    if not os.path.exists(label_path):
         messagebox.showerror("错误", "找不到语言文件：label.json")
         return False
     # 检查配置文件格式
     try:
-        with open('uart_command_set.json', 'r', encoding='utf-8') as f:
+        with open(config_path, 'r', encoding='utf-8') as f:
             json.load(f)
     except json.JSONDecodeError:
         messagebox.showerror("错误", "配置文件格式错误：uart_command_set.json")

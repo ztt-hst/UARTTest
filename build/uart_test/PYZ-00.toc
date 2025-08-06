@@ -20,6 +20,7 @@
   ('_threading_local',
    'C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python310\\lib\\_threading_local.py',
    'PYMODULE'),
+  ('afe_calibration', 'D:\\uart_test\\afe_calibration.py', 'PYMODULE'),
   ('argparse',
    'C:\\Users\\Administrator\\AppData\\Local\\Programs\\Python\\Python310\\lib\\argparse.py',
    'PYMODULE'),
