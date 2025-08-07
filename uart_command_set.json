@@ -486,13 +486,13 @@
     "子模块": "cell电芯",
     "Submodule": "Cell",
     "base addr.1": "0x0000",
-    "addr": "0x0074",
-    "index": "0x1074",
+    "addr": "0x0078",
+    "index": "0x1078",
     "项目": "电芯开路低温保护延迟",
-    "item": "CELL_OPEN_OVERTEMP_DELAY",
+    "item": "CELL_OPEN_UNDERTEMP_DELAY",
     "permission": "W",
-    "write command": "5A 20 00 06 10 74 00 00 00 00 1B A9",
-    "read command": "5A 10 00 02 10 74 AF DC",
+    "write command": "5A 20 00 06 10 78 00 00 00 00 90 82",
+    "read command": "5A 10 00 02 10 78 6E 50",
     "write data": "0x00000000"
   },
   {
@@ -2125,6 +2125,22 @@
     "permission": "W",
     "write command": "5A 20 00 06 1A 08 00 00 00 00 0B 06",
     "read command": "5A 10 00 02 1A 08 FF 0C",
+    "write data": "0x00000000"
+  },
+  {
+    "模块": "配置参数",
+    "Module": "Configuration Parameters",
+    "base addr": "0x1000",
+    "子模块": "AFE参数",
+    "Submodule": "AFE Parameters",
+    "base addr.1": "0x0A00",
+    "addr": "0x000C",
+    "index": "0x1A0C",
+    "项目": "AFE充电时结束均衡压差",
+    "item": "AFE_CB_STOP_DELTA_CHG",
+    "permission": "W",
+    "write command": "5A 20 00 06 1A 0C 00 00 00 00 82 00",
+    "read command": "5A 10 00 02 1A 0C BF 88",
     "write data": "0x00000000"
   },
   {
