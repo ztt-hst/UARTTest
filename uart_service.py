@@ -1,7 +1,8 @@
 import time
 import threading
-from protocol import generate_read_command, generate_write_command, parse_response, generate_upgrade_packets, generate_upgrade_crc_command, UPGRADE_PACKET_SIZE, PU_STATUS_OK, PU_FUN_UPGRADE, PU_FRAME_HEAD, PU_FUN_MCU_RESET, PU_FUN_CONNECT, calculate_crc16, generate_status_response
+from protocol import generate_read_command, generate_write_command, parse_response, generate_upgrade_packets, generate_upgrade_crc_command, calculate_crc16, generate_status_response
 from protocol import (
+    PU_FRAME_HEAD,MIN_PACKET_SIZE,UPGRADE_PACKET_SIZE,
     PU_FUN_READ, PU_FUN_WRITE, PU_FUN_UPGRADE, PU_FUN_UPGRADE_CRC,
     PU_FUN_MCU_RESET, PU_FUN_CONNECT,
     PU_FUN_MCU_WRITE_ALARM, PU_FUN_MCU_WRITE_CONFIG, PU_FUN_MCU_WRITE_DATA,
@@ -65,11 +66,11 @@ class UARTService:
                 if self.uart.in_waiting() > 0:
                     recv_buffer += self.uart.read(self.uart.in_waiting())
                 # 粘包处理循环
-                while len(recv_buffer) >= 6:
+                while len(recv_buffer) >= MIN_PACKET_SIZE:
                     #在log中打印recv_buffer
                     #self.log_func(f"Recv buffer: {' '.join(f'{b:02X}' for b in recv_buffer)}")
                     # 1. 找包头
-                    idx = recv_buffer.find(0x5A)
+                    idx = recv_buffer.find(PU_FRAME_HEAD)
                     if idx == -1:
                         # 没有包头，全部丢弃
                         #在log中打印无效包
@@ -80,13 +81,13 @@ class UARTService:
                         # 丢弃包头前的无效数据
                         recv_buffer = recv_buffer[idx:]
                     # 2. 检查最小长度
-                    if len(recv_buffer) < 6:
+                    if len(recv_buffer) < MIN_PACKET_SIZE:
                         break  # 等待更多数据
                     # 3. 检查FUN_CODE
                     fun_code = recv_buffer[1]
                     if fun_code not in ALLOWED_FUN_CODES:
                         # FUN_CODE非法，丢弃当前包头到下一个包头之间的所有数据
-                        next_head = recv_buffer[1:].find(0x5A)
+                        next_head = recv_buffer[1:].find(PU_FRAME_HEAD)
                         if next_head == -1:
                             # 后面没有包头，全部丢弃
                             invalid_packet = recv_buffer[:]

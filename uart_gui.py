@@ -125,7 +125,7 @@ class UARTTestGUI:
             for item in self.items:
                 addr = int(item['index'], 16)
                 self.addr_map[addr] = item
-
+            # 初始化串口服务
             self.uart_service = UARTService(
                 self.uart,
                 log_func=self.add_to_log,
@@ -1006,13 +1006,6 @@ class UARTTestGUI:
 
     def format_bytes(self, data):
         return utils.format_bytes(data)
-
-    # Remove protocol/serial/handshake/timeout logic now handled by uart_service
-    # def handle_handshake(self, data): ...
-    # def start_e0_handshake(self): ...
-    # def start_serial_listener(self): ...
-    # def handle_serial_data(self, data): ...
-    # def check_pending_timeouts(self): ...
 
     def on_save_log_toggle(self):
         if self.save_log_var.get():

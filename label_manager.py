@@ -16,7 +16,7 @@ def get_resource_path(filename):
 
 class LabelManager:
     def __init__(self):
-        self.current_language = "EN"
+        self.current_language = "CN"
         self.labels = {}
         self.load_labels()
 
