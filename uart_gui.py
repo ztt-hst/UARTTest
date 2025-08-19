@@ -21,7 +21,7 @@ from protocol import (
     PU_STATUS_UPGRADE_PACKAGE_CRC_ERROR,
     calculate_crc16, to_signed, generate_read_command, generate_write_command, parse_response,
     calculate_complete_addr, generate_e0_handshake, generate_upgrade_packets, generate_upgrade_crc_command,
-    UPGRADE_PACKET_SIZE
+    UPGRADE_PACKET_SIZE, validate_value_for_type
 )
 from uart_interface import UARTInterface
 from log_manager import LogManager
@@ -325,9 +325,21 @@ class UARTTestGUI:
             item['label_widget'] = item_label
             
             # Create tooltip for the label添加提示框
+            data_type = item.get('type', 'int32_t')
+            try:
+                from protocol import get_type_info
+                type_info = get_type_info(data_type)
+                if data_type == 'float':
+                    range_info = f"Range: ±{type_info['max']:.1e}"
+                else:
+                    range_info = f"Range: {type_info['min']} to {type_info['max']}"
+            except:
+                range_info = "Range: See documentation"
+            
             self.create_tooltip(item_label, 
                               f"Address: {item['index']}\n"
-                              #f"Description: {item.get('item' if self.current_language == 'EN' else '项目', '')}\n"
+                              f"Type: {data_type}\n"
+                              f"{range_info}\n"
                               f"Permission: {item.get('permission', 'R')}")
 
             # Create read button and result display
@@ -423,63 +435,33 @@ class UARTTestGUI:
         threading.Thread(target=lambda: self.uart_service.read_item(item, on_response), daemon=True).start()
 
     def write_item(self, item):
-        """Write value for a single item"""
+        """Write value for a single item with type validation"""
         if not self.check_connection():
             return
         if not self.uart_service.is_mcu_connected():
             messagebox.showwarning("Warning", "MCU not connected. Please wait for handshake.")
             return
+        
         addr_hex = item['index']
-        # 检查是否为 AFE 校准项目
-        module_name = item.get('模块' if self.current_language == 'CN' else 'Module', '')
-        submodule_name = item.get('子模块' if self.current_language == 'CN' else 'Submodule', '')
-        # 判断是否为 AFE 校准模块
-        is_afe_calibration = (
-            module_name in ["AFE校准", "AFE calibration"] or 
-            submodule_name in ["AFE校准", "AFE calibration"]
-        )
-        if is_afe_calibration:
-            try:
-                from afe_calibration import afe_calibration
-                item_name = item.get('项目' if self.current_language == 'CN' else 'item', '')
-                calculated_value = afe_calibration.calculate_calibration_value(item_name, item)
-                if calculated_value is not None:
-                    # 验证校准值
-                    if afe_calibration.validate_calibration_value(calculated_value, item_name):
-                        value = calculated_value
-                        # 记录校准日志
-                        afe_calibration.log_calibration(item_name, calculated_value, True)
-                        self.add_to_log(f"AFE校准计算: {item_name} = {calculated_value}")
-                    else:
-                        self.write_status_vars[item['index']].set("校准值无效")
-                        afe_calibration.log_calibration(item_name, calculated_value, False)
-                        self.add_to_log(f"AFE校准失败: {item_name} 值 {calculated_value} 超出范围")
-                        return
-                else:
-                    self.write_status_vars[item['index']].set("校准计算失败")
-                    self.add_to_log(f"AFE校准计算失败: {item_name}")
-                    return               
-            except ImportError:
-                self.write_status_vars[item['index']].set("校准模块缺失")
-                self.add_to_log(f"AFE校准模块导入失败")
-                return
-            except Exception as e:
-                self.write_status_vars[item['index']].set("校准错误")
-                self.add_to_log(f"AFE校准错误: {str(e)}")
-                return     
-        else:
-            if item['index'] not in self.input_vars:
-                self.write_status_vars[item['index']].set("err")
-                return
-            value_str = self.input_vars[item['index']].get().strip()
-            if not value_str:
-                self.write_status_vars[item['index']].set("err")
-                return
-            try:
-                value = int(value_str, 16) if value_str.startswith('0x') else int(value_str)
-            except ValueError:
-                self.write_status_vars[item['index']].set("err")
-                return
+        if item['index'] not in self.input_vars:
+            self.write_status_vars[item['index']].set("err")
+            return
+        
+        value_str = self.input_vars[item['index']].get().strip()
+        if not value_str:
+            self.write_status_vars[item['index']].set("err")
+            return
+        
+        # Get the data type for this item
+        data_type = item.get('type', 'int32_t')
+        
+        # Validate the input value for this type
+        check_value = validate_value_for_type(value_str, data_type)
+        if check_value is None:
+            self.write_status_vars[item['index']].set("Invalid type")
+            self.add_to_log(f"[Write] {addr_hex} invalid '{value_str}' for {data_type} (decimal only for ints)")
+            return       
+        value = check_value;
         def on_response(result, error=None):
             if error:
                 if error == 'timeout':
@@ -497,6 +479,7 @@ class UARTTestGUI:
                 else:
                     self.write_status_vars[item['index']].set("err")
                     self.add_to_log(f"write {addr_hex} unknown result: {result}")
+        
         threading.Thread(target=lambda: self.uart_service.write_item(item, value, on_response), daemon=True).start()
 
     def create_widgets(self):

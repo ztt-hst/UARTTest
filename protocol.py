@@ -1,5 +1,8 @@
 # protocol.py
 
+import struct
+import math
+
 # UART Protocol Constants
 PU_FRAME_HEAD = 0x5A
 
@@ -32,6 +35,106 @@ PU_STATUS_UPGRADE_PACKAGE_CRC_ERROR = 0xF8
 MIN_PACKET_SIZE = 6
 # 升级包大小
 UPGRADE_PACKET_SIZE = 2048
+
+def get_type_info(type_str):
+    """Get size, format string, and value range for a given type"""
+    type_map = {
+        'int8_t': {'size': 1, 'format': 'b', 'min': -128, 'max': 127},
+        'uint8_t': {'size': 1, 'format': 'B', 'min': 0, 'max': 255},
+        'int16_t': {'size': 2, 'format': '>h', 'min': -32768, 'max': 32767},
+        'uint16_t': {'size': 2, 'format': '>H', 'min': 0, 'max': 65535},
+        'int32_t': {'size': 4, 'format': '>i', 'min': -2147483648, 'max': 2147483647},
+        'uint32_t': {'size': 4, 'format': '>I', 'min': 0, 'max': 4294967295},
+        'float': {'size': 4, 'format': '>f', 'min': -3.4e38, 'max': 3.4e38}
+    }
+    return type_map.get(type_str, type_map['int32_t'])  # Default to int32_t
+
+def validate_value_for_type(value, type_str):
+    """Validate and return parsed value if valid, else None"""
+    type_info = get_type_info(type_str)
+    try:
+        if type_str == 'float':
+            val = float(value)
+        else:
+            val = int(value)  # 只接受十进制
+        if type_info['min'] <= val <= type_info['max']:
+            return val
+        return None
+    except ValueError:
+        return None
+
+def pack_value_by_type(value, type_str):
+    """Pack a value according to its type, always return 4 bytes in big-endian format"""
+    if type_str == 'float':
+        # Float: pack as big-endian float, already 4 bytes
+        return struct.pack('>f', float(value))
+    else:
+        # Integer types: pack to 4 bytes big-endian, with proper alignment
+        val = int(value)
+        
+        if type_str in ['int8_t', 'uint8_t']:
+            # 8-bit value: pack as 32-bit big-endian (high 24 bits are 0)
+            if type_str == 'int8_t' and val < 0:
+                # Sign extend for negative int8_t values
+                val = val & 0xFF  # Convert to unsigned byte representation
+                return struct.pack('>I', val)
+            else:
+                return struct.pack('>I', val & 0xFF)
+                
+        elif type_str in ['int16_t', 'uint16_t']:
+            # 16-bit value: pack as 32-bit big-endian (high 16 bits are 0)
+            if type_str == 'int16_t' and val < 0:
+                # Sign extend for negative int16_t values
+                val = val & 0xFFFF  # Convert to unsigned short representation
+                return struct.pack('>I', val)
+            else:
+                return struct.pack('>I', val & 0xFFFF)
+                
+        else:  # int32_t, uint32_t or default
+            if type_str == 'uint32_t':
+                return struct.pack('>I', val & 0xFFFFFFFF)
+            else:
+                return struct.pack('>i', val)
+
+def unpack_value_by_type(data, type_str):
+    """Unpack 4-byte big-endian data according to its type"""
+    if len(data) < 4:
+        raise ValueError(f"Need 4 bytes of data, got {len(data)}")
+    
+    # Always work with 4 bytes
+    data_4bytes = data[:4]
+    
+    if type_str == 'float':
+        # Float: unpack as big-endian float
+        return struct.unpack('>f', data_4bytes)[0]
+    else:
+        # First unpack as 32-bit unsigned big-endian
+        full_val = struct.unpack('>I', data_4bytes)[0]
+        
+        if type_str in ['int8_t', 'uint8_t']:
+            # Extract the lowest 8 bits
+            val_8 = full_val & 0xFF
+            if type_str == 'int8_t':
+                # Convert to signed 8-bit
+                return val_8 if val_8 < 128 else val_8 - 256
+            else:
+                return val_8
+                
+        elif type_str in ['int16_t', 'uint16_t']:
+            # Extract the lowest 16 bits
+            val_16 = full_val & 0xFFFF
+            if type_str == 'int16_t':
+                # Convert to signed 16-bit
+                return val_16 if val_16 < 32768 else val_16 - 65536
+            else:
+                return val_16
+                
+        else:  # int32_t, uint32_t or default
+            if type_str == 'uint32_t':
+                return full_val
+            else:
+                # Convert to signed 32-bit
+                return struct.unpack('>i', data_4bytes)[0]
 
 def calculate_crc16(data, length):
     """
@@ -78,34 +181,41 @@ def generate_read_command(addr):
     data.append(crc & 0xFF)
     return data
 
-def generate_write_command(addr, value):
+def generate_write_command(addr, value, data_type='int32_t'):
     """
     Generate write command frame with CRC
     Args:
-        addr: 32-bit address to write to (e.g. 0x1200)
-        value: 32-bit integer data to write
+        addr: 16-bit address to write to (e.g. 0x1200)
+        value: value to write
+        data_type: type string from JSON (e.g. 'int16_t', 'float')
     Returns:
         bytearray containing the complete command frame
     """
+    # Pack value according to its type (always returns 4 bytes in big-endian)
+    try:
+        packed_data = pack_value_by_type(value, data_type)
+    except Exception as e:
+        # Fallback to original method if packing fails
+        packed_data = struct.pack('>i', int(value))
+    
     data = bytearray([
         PU_FRAME_HEAD,
         PU_FUN_WRITE,
         0x00, 0x06,
         (addr >> 8) & 0xFF,
         addr & 0xFF,
-        (value >> 24) & 0xFF,
-        (value >> 16) & 0xFF,
-        (value >> 8) & 0xFF,
-        value & 0xFF
     ])
+    
+    data.extend(packed_data)
+    
     crc = calculate_crc16(data, len(data))
     data.append((crc >> 8) & 0xFF)
     data.append(crc & 0xFF)
     return data
 
-def parse_response(response, is_write=False, expected_addr=None):
+def parse_response(response, is_write=False, expected_addr=None, data_type='int32_t'):
     """
-    Parse the response from UART
+    Parse the response from UART with type awareness
     For read command:
         Success response(12B): 5A 11 00 06 + addr(2B) + data(4B) + crc(2B)
         Error response(8B): 5A F1 00 02 + pu_fun_code(1B) + STATUS_CODE(1B) + CRC(2B)
@@ -129,15 +239,27 @@ def parse_response(response, is_write=False, expected_addr=None):
             raise ValueError("Invalid length for read response")
         if len(response) != 12:
             raise ValueError("Invalid response length")
+        
         addr = (response[4] << 8) | response[5]
-        data = (response[6] << 24) | (response[7] << 16) | (response[8] << 8) | response[9]
-        data = to_signed(data)
+        raw_data = response[6:10]  # 4 bytes of data
+        
+        # Parse according to the specified type
+        try:
+            parsed_value = unpack_value_by_type(raw_data, data_type)
+        except Exception as e:
+            # Fallback to original parsing for compatibility
+            parsed_value = (response[6] << 24) | (response[7] << 16) | (response[8] << 8) | response[9]
+            parsed_value = to_signed(parsed_value)
+        
         if expected_addr is not None and addr != expected_addr:
             raise ValueError(f"Address mismatch: expected 0x{expected_addr:04X}, got 0x{addr:04X}")
+        
         return {
             'status': 'success',
             'addr': addr,
-            'data': data
+            'data': parsed_value,
+            'raw_data': raw_data.hex(),
+            'type': data_type
         }
     elif resp_type == PU_ACK_NO_DATA:
         if length != 0x02:

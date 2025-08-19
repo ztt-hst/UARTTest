@@ -1,6 +1,6 @@
 import time
 import threading
-from protocol import generate_read_command, generate_write_command, parse_response, generate_upgrade_packets, generate_upgrade_crc_command, calculate_crc16, generate_status_response
+from protocol import generate_read_command, generate_write_command, parse_response, generate_upgrade_packets, generate_upgrade_crc_command, calculate_crc16, generate_status_response, validate_value_for_type, to_signed
 from protocol import (
     PU_FRAME_HEAD,MIN_PACKET_SIZE,UPGRADE_PACKET_SIZE,
     PU_FUN_READ, PU_FUN_WRITE, PU_FUN_UPGRADE, PU_FUN_UPGRADE_CRC,
@@ -210,16 +210,28 @@ class UARTService:
                 status_code = PU_STATUS_OK
                 for i in range(0, data_len, 6):
                     addr = (data[4+i] << 8) | data[5+i]
-                    value = (data[6+i] << 24) | (data[7+i] << 16) | (data[8+i] << 8) | data[9+i]
+                    raw_value = (data[6+i] << 24) | (data[7+i] << 16) | (data[8+i] << 8) | data[9+i]
                     item = self.addr_map.get(addr)
                     if item is None:
                         status_code = PU_STATUS_ADDRESS_ERROR
-                        self.log_func(f"MCU report: addr=0x{addr:04X}, value={value}, status=ADDR_ERROR")
+                        self.log_func(f"MCU report: addr=0x{addr:04X}, value={raw_value}, status=ADDR_ERROR")
                         break
                     else:
-                        self.log_func(f"MCU report: addr=0x{addr:04X}, value={value}, status=OK")
-                    if self.gui_update_callback:
-                        self.gui_update_callback(addr, value)
+                        # Parse value according to item type
+                        try:
+                            data_type = item.get('type', 'int32_t')
+                            raw_data = data[6+i:10+i]  # 4 bytes
+                            from protocol import unpack_value_by_type
+                            parsed_value = unpack_value_by_type(raw_data, data_type)
+                            self.log_func(f"MCU report: addr=0x{addr:04X}, value={parsed_value} ({data_type}), status=OK")
+                            if self.gui_update_callback:
+                                self.gui_update_callback(addr, parsed_value)
+                        except Exception as e:
+                            # Fallback to original parsing
+                            signed_value = to_signed(raw_value, bits=32)
+                            self.log_func(f"MCU report: addr=0x{addr:04X}, value={signed_value} (fallback), status=OK")
+                            if self.gui_update_callback:
+                                self.gui_update_callback(addr, signed_value)
                 if self.response_40_50_getter():
                     self.send_status_response(fun_code, status_code)
                 return
@@ -232,7 +244,8 @@ class UARTService:
                     with self.pending_lock:
                         for req_id, req in list(self.pending_requests.items()):
                             if req['type'] == 'read' and resp_type == 0x11 and req['addr'] == addr:
-                                result = parse_response(data, is_write=False, expected_addr=addr)
+                                data_type = req.get('data_type', 'int32_t')
+                                result = parse_response(data, is_write=False, expected_addr=addr, data_type=data_type)
                                 req['callback'](result)
                                 del self.pending_requests[req_id]
                                 return
@@ -260,6 +273,7 @@ class UARTService:
 
     def read_item(self, item, callback, timeout=2.0):
         addr = int(item['index'], 16)
+        data_type = item.get('type', 'int32_t')
         cmd = generate_read_command(addr)
         request_id = f"read_{addr}_{int(time.time()*1000)}"
         def on_response(result, error=None):
@@ -269,6 +283,7 @@ class UARTService:
                 'item': item,
                 'type': 'read',
                 'addr': addr,
+                'data_type': data_type,
                 'time': time.time(),
                 'callback': on_response
             }
@@ -288,7 +303,8 @@ class UARTService:
 
     def write_item(self, item, value, callback, timeout=2.0):
         addr = int(item['index'], 16)
-        cmd = generate_write_command(addr, value)
+        data_type = item.get('type', 'int32_t')
+        cmd = generate_write_command(addr, value, data_type)
         request_id = f"write_{addr}_{int(time.time()*1000)}"
         def on_response(result, error=None):
             callback(result, error)
@@ -297,6 +313,7 @@ class UARTService:
                 'item': item,
                 'type': 'write',
                 'addr': addr,
+                'data_type': data_type,
                 'time': time.time(),
                 'callback': on_response
             }

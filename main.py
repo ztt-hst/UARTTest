@@ -42,8 +42,8 @@ def main():
         root.title("UART Test Tool")
         
         # 设置窗口大小和位置
-        window_width = 800
-        window_height = 600
+        window_width = 1200
+        window_height = 900
         screen_width = root.winfo_screenwidth()
         screen_height = root.winfo_screenheight()
         x = (screen_width - window_width) // 2
